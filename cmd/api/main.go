@@ -9,11 +9,14 @@ import (
 	"github.com/raffi/todo-app/internal/config"
 	"github.com/raffi/todo-app/internal/database"
 	"github.com/raffi/todo-app/internal/handler"
+	"github.com/raffi/todo-app/internal/logger"
 	"github.com/raffi/todo-app/internal/repository"
 	"github.com/raffi/todo-app/internal/service"
 )
 
 func main() {
+	appLogger := logger.New()
+
 	cfg := config.Load()
 
 	ctx, cancel := context.WithTimeout(
@@ -34,9 +37,16 @@ func main() {
 		},
 	)
 	if err != nil {
-		log.Fatalf("database connection failed: %v", err)
+		log.Fatalf(
+			"database connection failed: %v",
+			err,
+		)
 	}
 	defer db.Close()
+
+	appLogger.Info(
+		"database connection established",
+	)
 
 	// Repository
 	todoRepository := repository.NewTodoRepository(db)
@@ -45,58 +55,89 @@ func main() {
 	todoService := service.NewTodoService(todoRepository)
 
 	// Handler
-	todoHandler := handler.NewTodoHandler(todoService)
+	todoHandler := handler.NewTodoHandler(
+		todoService,
+		appLogger,
+	)
 
 	// Health check
-	http.HandleFunc("/health", healthHandler)
+	http.HandleFunc(
+		"/health",
+		healthHandler,
+	)
 
 	// Todo collection:
 	// GET  /todos
 	// POST /todos
-	http.HandleFunc("/todos", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			todoHandler.GetTodos(w, r)
+	http.HandleFunc(
+		"/todos",
+		func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				todoHandler.GetTodos(w, r)
 
-		case http.MethodPost:
-			todoHandler.CreateTodo(w, r)
+			case http.MethodPost:
+				todoHandler.CreateTodo(w, r)
 
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}
-	})
+			default:
+				w.WriteHeader(
+					http.StatusMethodNotAllowed,
+				)
+			}
+		},
+	)
 
 	// Todo item:
 	// GET    /todos/{id}
 	// PUT    /todos/{id}
 	// DELETE /todos/{id}
-	http.HandleFunc("/todos/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			todoHandler.GetTodo(w, r)
+	http.HandleFunc(
+		"/todos/",
+		func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				todoHandler.GetTodo(w, r)
 
-		case http.MethodPut:
-			todoHandler.UpdateTodo(w, r)
+			case http.MethodPut:
+				todoHandler.UpdateTodo(w, r)
 
-		case http.MethodDelete:
-			todoHandler.DeleteTodo(w, r)
+			case http.MethodDelete:
+				todoHandler.DeleteTodo(w, r)
 
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}
-	})
+			default:
+				w.WriteHeader(
+					http.StatusMethodNotAllowed,
+				)
+			}
+		},
+	)
 
 	addr := ":" + cfg.AppPort
 
-	log.Printf("Todo API is running on %s", addr)
+	appLogger.Info(
+		"todo API is running",
+		"address", addr,
+	)
 
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok"}`))
+func healthHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(
+		http.StatusOK,
+	)
+
+	w.Write(
+		[]byte(`{"status":"ok"}`),
+	)
 }

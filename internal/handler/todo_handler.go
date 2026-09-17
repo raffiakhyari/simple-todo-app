@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -43,13 +44,16 @@ type TodoService interface {
 
 type TodoHandler struct {
 	service TodoService
+	logger  *slog.Logger
 }
 
 func NewTodoHandler(
 	todoService TodoService,
+	appLogger *slog.Logger,
 ) *TodoHandler {
 	return &TodoHandler{
 		service: todoService,
+		logger:  appLogger,
 	}
 }
 
@@ -99,6 +103,11 @@ func (h *TodoHandler) CreateTodo(
 		return
 	}
 
+	h.logger.Info(
+		"todo created",
+		"todo_id", todo.ID,
+	)
+
 	w.Header().Set(
 		"Content-Type",
 		"application/json",
@@ -132,6 +141,11 @@ func (h *TodoHandler) GetTodos(
 		)
 		return
 	}
+
+	h.logger.Info(
+		"todos fetched",
+		"count", len(todos),
+	)
 
 	w.Header().Set(
 		"Content-Type",
@@ -192,6 +206,11 @@ func (h *TodoHandler) GetTodo(
 		)
 		return
 	}
+
+	h.logger.Info(
+		"todo fetched",
+		"todo_id", todo.ID,
+	)
 
 	w.Header().Set(
 		"Content-Type",
@@ -268,6 +287,11 @@ func (h *TodoHandler) UpdateTodo(
 		return
 	}
 
+	h.logger.Info(
+		"todo updated",
+		"todo_id", todo.ID,
+	)
+
 	w.Header().Set(
 		"Content-Type",
 		"application/json",
@@ -327,6 +351,11 @@ func (h *TodoHandler) DeleteTodo(
 		)
 		return
 	}
+
+	h.logger.Info(
+		"todo deleted",
+		"todo_id", id,
+	)
 
 	w.WriteHeader(http.StatusNoContent)
 }
