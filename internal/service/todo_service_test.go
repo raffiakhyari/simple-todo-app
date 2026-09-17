@@ -24,7 +24,22 @@ type mockTodoRepository struct {
 		ctx context.Context,
 		id int64,
 	) (*model.Todo, error)
+
+	updateFunc func(
+		ctx context.Context,
+		id int64,
+		title string,
+		description *string,
+		completed bool,
+	) (*model.Todo, error)
+
+	deleteFunc func(
+		ctx context.Context,
+		id int64,
+	) error
 }
+
+//method function
 
 func (m *mockTodoRepository) Create(
 	ctx context.Context,
@@ -45,6 +60,29 @@ func (m *mockTodoRepository) FindByID(
 	id int64,
 ) (*model.Todo, error) {
 	return m.findByIDFunc(ctx, id)
+}
+
+func (m *mockTodoRepository) Update(
+	ctx context.Context,
+	id int64,
+	title string,
+	description *string,
+	completed bool,
+) (*model.Todo, error) {
+	return m.updateFunc(
+		ctx,
+		id,
+		title,
+		description,
+		completed,
+	)
+}
+
+func (m *mockTodoRepository) Delete(
+	ctx context.Context,
+	id int64,
+) error {
+	return m.deleteFunc(ctx, id)
 }
 
 func TestCreateTodo(t *testing.T) {
@@ -270,6 +308,252 @@ func TestGetTodoRepositoryError(t *testing.T) {
 	if todo != nil {
 		t.Fatal("expected todo to be nil")
 	}
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf(
+			"expected error %v, got %v",
+			expectedErr,
+			err,
+		)
+	}
+}
+
+func TestUpdateTodo(t *testing.T) {
+	ctx := context.Background()
+
+	description := "Updated description"
+
+	expectedTodo := &model.Todo{
+		ID:          1,
+		Title:       "Updated Todo",
+		Description: &description,
+		Completed:   true,
+	}
+
+	repo := &mockTodoRepository{
+		updateFunc: func(
+			ctx context.Context,
+			id int64,
+			title string,
+			description *string,
+			completed bool,
+		) (*model.Todo, error) {
+			if id != 1 {
+				t.Fatalf("expected ID 1, got %d", id)
+			}
+
+			if title != "Updated Todo" {
+				t.Fatalf(
+					"expected title %q, got %q",
+					"Updated Todo",
+					title,
+				)
+			}
+
+			if description == nil {
+				t.Fatal("expected description, got nil")
+			}
+
+			if *description != "Updated description" {
+				t.Fatalf(
+					"expected description %q, got %q",
+					"Updated description",
+					*description,
+				)
+			}
+
+			if !completed {
+				t.Fatal("expected completed to be true")
+			}
+
+			return expectedTodo, nil
+		},
+	}
+
+	svc := NewTodoService(repo)
+
+	todo, err := svc.UpdateTodo(
+		ctx,
+		1,
+		"  Updated Todo  ",
+		&description,
+		true,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if todo.ID != expectedTodo.ID {
+		t.Fatalf(
+			"expected ID %d, got %d",
+			expectedTodo.ID,
+			todo.ID,
+		)
+	}
+
+	if todo.Title != expectedTodo.Title {
+		t.Fatalf(
+			"expected title %q, got %q",
+			expectedTodo.Title,
+			todo.Title,
+		)
+	}
+
+	if todo.Completed != expectedTodo.Completed {
+		t.Fatalf(
+			"expected completed %v, got %v",
+			expectedTodo.Completed,
+			todo.Completed,
+		)
+	}
+}
+
+func TestUpdateTodoRequiresTitle(t *testing.T) {
+	ctx := context.Background()
+
+	repoCalled := false
+
+	repo := &mockTodoRepository{
+		updateFunc: func(
+			ctx context.Context,
+			id int64,
+			title string,
+			description *string,
+			completed bool,
+		) (*model.Todo, error) {
+			repoCalled = true
+			return nil, nil
+		},
+	}
+
+	svc := NewTodoService(repo)
+
+	todo, err := svc.UpdateTodo(
+		ctx,
+		1,
+		"   ",
+		nil,
+		false,
+	)
+
+	if todo != nil {
+		t.Fatal("expected todo to be nil")
+	}
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if err.Error() != "title is required" {
+		t.Fatalf(
+			"expected error %q, got %q",
+			"title is required",
+			err.Error(),
+		)
+	}
+
+	if repoCalled {
+		t.Fatal("expected repository not to be called")
+	}
+}
+
+func TestUpdateTodoRepositoryError(t *testing.T) {
+	ctx := context.Background()
+
+	expectedErr := errors.New("database error")
+
+	repo := &mockTodoRepository{
+		updateFunc: func(
+			ctx context.Context,
+			id int64,
+			title string,
+			description *string,
+			completed bool,
+		) (*model.Todo, error) {
+			return nil, expectedErr
+		},
+	}
+
+	svc := NewTodoService(repo)
+
+	todo, err := svc.UpdateTodo(
+		ctx,
+		1,
+		"Updated Todo",
+		nil,
+		true,
+	)
+
+	if todo != nil {
+		t.Fatal("expected todo to be nil")
+	}
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf(
+			"expected error %v, got %v",
+			expectedErr,
+			err,
+		)
+	}
+}
+
+func TestDeleteTodo(t *testing.T) {
+	ctx := context.Background()
+
+	repoCalled := false
+
+	repo := &mockTodoRepository{
+		deleteFunc: func(
+			ctx context.Context,
+			id int64,
+		) error {
+			repoCalled = true
+
+			if id != 1 {
+				t.Fatalf("expected ID 1, got %d", id)
+			}
+
+			return nil
+		},
+	}
+
+	svc := NewTodoService(repo)
+
+	err := svc.DeleteTodo(ctx, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !repoCalled {
+		t.Fatal("expected repository to be called")
+	}
+}
+
+func TestDeleteTodoRepositoryError(t *testing.T) {
+	ctx := context.Background()
+
+	expectedErr := errors.New("database error")
+
+	repo := &mockTodoRepository{
+		deleteFunc: func(
+			ctx context.Context,
+			id int64,
+		) error {
+			return expectedErr
+		},
+	}
+
+	svc := NewTodoService(repo)
+
+	err := svc.DeleteTodo(ctx, 1)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")

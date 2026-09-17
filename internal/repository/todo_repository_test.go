@@ -180,3 +180,137 @@ func TestTodoRepositoryFindByID(t *testing.T) {
 		)
 	}
 }
+
+func TestTodoRepositoryUpdate(t *testing.T) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	db, err := pgxpool.New(
+		ctx,
+		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+	)
+	if err != nil {
+		t.Fatalf("failed to create database pool: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewTodoRepository(db)
+
+	description := "Original description"
+
+	createdTodo, err := repo.Create(
+		ctx,
+		"Original Title",
+		&description,
+	)
+	if err != nil {
+		t.Fatalf("failed to create todo: %v", err)
+	}
+
+	updatedDescription := "Updated description"
+
+	updatedTodo, err := repo.Update(
+		ctx,
+		createdTodo.ID,
+		"Updated Title",
+		&updatedDescription,
+		true,
+	)
+	if err != nil {
+		t.Fatalf("failed to update todo: %v", err)
+	}
+
+	if updatedTodo.ID != createdTodo.ID {
+		t.Fatalf(
+			"expected ID %d, got %d",
+			createdTodo.ID,
+			updatedTodo.ID,
+		)
+	}
+
+	if updatedTodo.Title != "Updated Title" {
+		t.Fatalf(
+			"expected title %q, got %q",
+			"Updated Title",
+			updatedTodo.Title,
+		)
+	}
+
+	if updatedTodo.Description == nil {
+		t.Fatal("expected description, got nil")
+	}
+
+	if *updatedTodo.Description != "Updated description" {
+		t.Fatalf(
+			"expected description %q, got %q",
+			"Updated description",
+			*updatedTodo.Description,
+		)
+	}
+
+	if !updatedTodo.Completed {
+		t.Fatal("expected todo to be completed")
+	}
+
+	if !updatedTodo.UpdatedAt.After(createdTodo.UpdatedAt) {
+		t.Fatalf(
+			"expected updated_at to change, created_at=%v updated_at=%v",
+			createdTodo.UpdatedAt,
+			updatedTodo.UpdatedAt,
+		)
+	}
+}
+
+func TestTodoRepositoryDelete(t *testing.T) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	db, err := pgxpool.New(
+		ctx,
+		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+	)
+	if err != nil {
+		t.Fatalf("failed to create database pool: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewTodoRepository(db)
+
+	description := "Delete test"
+
+	createdTodo, err := repo.Create(
+		ctx,
+		"Delete Test",
+		&description,
+	)
+	if err != nil {
+		t.Fatalf("failed to create todo: %v", err)
+	}
+
+	err = repo.Delete(
+		ctx,
+		createdTodo.ID,
+	)
+	if err != nil {
+		t.Fatalf("failed to delete todo: %v", err)
+	}
+
+	deletedTodo, err := repo.FindByID(
+		ctx,
+		createdTodo.ID,
+	)
+
+	if err == nil {
+		t.Fatal("expected error when finding deleted todo")
+	}
+
+	if deletedTodo != nil {
+		t.Fatal("expected deleted todo to be nil")
+	}
+}
