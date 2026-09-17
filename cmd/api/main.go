@@ -8,6 +8,9 @@ import (
 
 	"github.com/raffi/todo-app/internal/config"
 	"github.com/raffi/todo-app/internal/database"
+	"github.com/raffi/todo-app/internal/handler"
+	"github.com/raffi/todo-app/internal/repository"
+	"github.com/raffi/todo-app/internal/service"
 )
 
 func main() {
@@ -33,10 +36,55 @@ func main() {
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
-
 	defer db.Close()
 
+	// Repository
+	todoRepository := repository.NewTodoRepository(db)
+
+	// Service
+	todoService := service.NewTodoService(todoRepository)
+
+	// Handler
+	todoHandler := handler.NewTodoHandler(todoService)
+
+	// Health check
 	http.HandleFunc("/health", healthHandler)
+
+	// Todo collection:
+	// GET  /todos
+	// POST /todos
+	http.HandleFunc("/todos", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			todoHandler.GetTodos(w, r)
+
+		case http.MethodPost:
+			todoHandler.CreateTodo(w, r)
+
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Todo item:
+	// GET    /todos/{id}
+	// PUT    /todos/{id}
+	// DELETE /todos/{id}
+	http.HandleFunc("/todos/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			todoHandler.GetTodo(w, r)
+
+		case http.MethodPut:
+			todoHandler.UpdateTodo(w, r)
+
+		case http.MethodDelete:
+			todoHandler.DeleteTodo(w, r)
+
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
 
 	addr := ":" + cfg.AppPort
 
@@ -49,8 +97,6 @@ func main() {
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
 	w.WriteHeader(http.StatusOK)
-
 	w.Write([]byte(`{"status":"ok"}`))
 }
