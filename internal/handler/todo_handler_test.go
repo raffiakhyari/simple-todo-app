@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/raffi/todo-app/internal/logger"
 	"github.com/raffi/todo-app/internal/model"
 	"github.com/raffi/todo-app/internal/service"
 )
@@ -154,7 +155,7 @@ func TestCreateTodoHandler(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	requestBody := `{
 		"title": "Learn Go",
@@ -243,7 +244,7 @@ func TestCreateTodoHandlerInvalidJSON(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	requestBody := `{
 		"title": "Learn Go",
@@ -296,7 +297,7 @@ func TestCreateTodoHandlerServiceError(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	requestBody := `{
 		"title": "Learn Go",
@@ -359,7 +360,7 @@ func TestCreateTodoHandlerMethodNotAllowed(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	requestBody := `{
 		"title": "Learn Go",
@@ -440,7 +441,7 @@ func TestGetTodosHandler(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -526,7 +527,7 @@ func TestGetTodosHandlerMethodNotAllowed(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -587,7 +588,7 @@ func TestGetTodoHandler(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -658,7 +659,7 @@ func TestGetTodoHandlerInvalidID(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -700,7 +701,7 @@ func TestGetTodoHandlerServiceError(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -753,7 +754,7 @@ func TestGetTodoHandlerNotFound(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -852,7 +853,7 @@ func TestUpdateTodoHandler(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	requestBody := `{
 		"title": "Learn Go",
@@ -944,7 +945,7 @@ func TestUpdateTodoHandlerInvalidID(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodPut,
@@ -1003,7 +1004,7 @@ func TestUpdateTodoHandlerInvalidJSON(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodPut,
@@ -1058,7 +1059,7 @@ func TestUpdateTodoHandlerServiceError(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodPut,
@@ -1110,7 +1111,7 @@ func TestUpdateTodoHandlerNotFound(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodPut,
@@ -1167,7 +1168,7 @@ func TestDeleteTodoHandler(t *testing.T) {
 		},
 	}
 
-	handler := NewTodoHandler(mockService)
+	handler := newTestTodoHandler(mockService)
 
 	req := httptest.NewRequest(
 		http.MethodDelete,
@@ -1193,4 +1194,11 @@ func TestDeleteTodoHandler(t *testing.T) {
 			recorder.Code,
 		)
 	}
+}
+
+func newTestTodoHandler(mockService *mockTodoService) *TodoHandler {
+	return NewTodoHandler(
+		mockService,
+		logger.New(),
+	)
 }
