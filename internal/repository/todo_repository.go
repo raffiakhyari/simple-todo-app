@@ -111,8 +111,38 @@ func (r *TodoRepository) FindAll(
 	return todos, nil
 }
 
-func (s *TodoService) GetTodos(
+func (r *TodoRepository) FindByID(
 	ctx context.Context,
-) ([]model.Todo, error) {
-	return s.repo.FindAll(ctx)
+	id int64,
+) (*model.Todo, error) {
+	todo := &model.Todo{}
+
+	err := r.db.QueryRow(
+		ctx,
+		`
+		SELECT
+			id,
+			title,
+			description,
+			completed,
+			created_at,
+			updated_at
+		FROM todos
+		WHERE id = $1
+		`,
+		id,
+	).Scan(
+		&todo.ID,
+		&todo.Title,
+		&todo.Description,
+		&todo.Completed,
+		&todo.CreatedAt,
+		&todo.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return todo, nil
 }

@@ -18,6 +18,11 @@ type TodoRepository interface {
 	FindAll(
 		ctx context.Context,
 	) ([]model.Todo, error)
+
+	FindByID(
+		ctx context.Context,
+		id int64,
+	) (*model.Todo, error)
 }
 
 type TodoService struct {

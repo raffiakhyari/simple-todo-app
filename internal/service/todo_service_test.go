@@ -18,6 +18,11 @@ type mockTodoRepository struct {
 	findAllFunc func(
 		ctx context.Context,
 	) ([]model.Todo, error)
+
+	findByIDFunc func(
+		ctx context.Context,
+		id int64,
+	) (*model.Todo, error)
 }
 
 func (m *mockTodoRepository) Create(
@@ -32,6 +37,13 @@ func (m *mockTodoRepository) FindAll(
 	ctx context.Context,
 ) ([]model.Todo, error) {
 	return m.findAllFunc(ctx)
+}
+
+func (m *mockTodoRepository) FindByID(
+	ctx context.Context,
+	id int64,
+) (*model.Todo, error) {
+	return m.findByIDFunc(ctx, id)
 }
 
 func TestCreateTodo(t *testing.T) {
