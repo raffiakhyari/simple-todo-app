@@ -58,3 +58,91 @@ func (r *TodoRepository) Create(
 
 	return todo, nil
 }
+
+func (r *TodoRepository) FindAll(
+	ctx context.Context,
+) ([]model.Todo, error) {
+	rows, err := r.db.Query(
+		ctx,
+		`
+		SELECT
+			id,
+			title,
+			description,
+			completed,
+			created_at,
+			updated_at
+		FROM todos
+		ORDER BY created_at DESC
+		`,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var todos []model.Todo
+
+	for rows.Next() {
+		var todo model.Todo
+
+		err := rows.Scan(
+			&todo.ID,
+			&todo.Title,
+			&todo.Description,
+			&todo.Completed,
+			&todo.CreatedAt,
+			&todo.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		todos = append(todos, todo)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return todos, nil
+}
+
+func (r *TodoRepository) FindByID(
+	ctx context.Context,
+	id int64,
+) (*model.Todo, error) {
+	todo := &model.Todo{}
+
+	err := r.db.QueryRow(
+		ctx,
+		`
+		SELECT
+			id,
+			title,
+			description,
+			completed,
+			created_at,
+			updated_at
+		FROM todos
+		WHERE id = $1
+		`,
+		id,
+	).Scan(
+		&todo.ID,
+		&todo.Title,
+		&todo.Description,
+		&todo.Completed,
+		&todo.CreatedAt,
+		&todo.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return todo, nil
+}
