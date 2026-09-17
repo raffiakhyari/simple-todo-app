@@ -10,6 +10,7 @@ import (
 	"github.com/raffi/todo-app/internal/database"
 	"github.com/raffi/todo-app/internal/handler"
 	"github.com/raffi/todo-app/internal/logger"
+	"github.com/raffi/todo-app/internal/middleware"
 	"github.com/raffi/todo-app/internal/repository"
 	"github.com/raffi/todo-app/internal/service"
 )
@@ -119,9 +120,18 @@ func main() {
 		"address", addr,
 	)
 
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	// CORS middleware
+	appHandler := middleware.CORS(
+		cfg.CORSAllowedOrigin,
+	)(http.DefaultServeMux)
+
+	if err := http.ListenAndServe(
+		addr,
+		appHandler,
+	); err != nil {
 		log.Fatal(err)
 	}
+
 }
 
 func healthHandler(
@@ -133,11 +143,10 @@ func healthHandler(
 		"application/json",
 	)
 
-	w.WriteHeader(
-		http.StatusOK,
-	)
+	w.WriteHeader(http.StatusOK)
 
 	w.Write(
 		[]byte(`{"status":"ok"}`),
 	)
+
 }

@@ -28,7 +28,7 @@ RUN apk --no-cache add ca-certificates
 COPY --from=builder /todo-api /app/todo-api
 
 # Application port
-EXPOSE 8080
+EXPOSE 8010
 
 # Run application
 ENTRYPOINT ["/app/todo-api"]

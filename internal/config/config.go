@@ -14,6 +14,7 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
+	CORSAllowedOrigin string
 }
 
 func Load() Config {
@@ -27,5 +28,6 @@ func Load() Config {
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     os.Getenv("DB_NAME"),
 		DBSSLMode:  os.Getenv("DB_SSLMODE"),
+		CORSAllowedOrigin: os.Getenv("CORS_ALLOWED_ORIGIN"),
 	}
 }
