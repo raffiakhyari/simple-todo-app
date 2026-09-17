@@ -263,3 +263,54 @@ func TestTodoRepositoryUpdate(t *testing.T) {
 		)
 	}
 }
+
+func TestTodoRepositoryDelete(t *testing.T) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	db, err := pgxpool.New(
+		ctx,
+		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+	)
+	if err != nil {
+		t.Fatalf("failed to create database pool: %v", err)
+	}
+	defer db.Close()
+
+	repo := NewTodoRepository(db)
+
+	description := "Delete test"
+
+	createdTodo, err := repo.Create(
+		ctx,
+		"Delete Test",
+		&description,
+	)
+	if err != nil {
+		t.Fatalf("failed to create todo: %v", err)
+	}
+
+	err = repo.Delete(
+		ctx,
+		createdTodo.ID,
+	)
+	if err != nil {
+		t.Fatalf("failed to delete todo: %v", err)
+	}
+
+	deletedTodo, err := repo.FindByID(
+		ctx,
+		createdTodo.ID,
+	)
+
+	if err == nil {
+		t.Fatal("expected error when finding deleted todo")
+	}
+
+	if deletedTodo != nil {
+		t.Fatal("expected deleted todo to be nil")
+	}
+}

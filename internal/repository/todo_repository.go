@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/raffi/todo-app/internal/model"
 )
 
@@ -192,4 +191,24 @@ func (r *TodoRepository) Update(
 	}
 
 	return todo, nil
+}
+
+func (r *TodoRepository) Delete(
+	ctx context.Context,
+	id int64,
+) error {
+	_, err := r.db.Exec(
+		ctx,
+		`
+		DELETE FROM todos
+		WHERE id = $1
+		`,
+		id,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

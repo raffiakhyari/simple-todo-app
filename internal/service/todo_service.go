@@ -31,6 +31,11 @@ type TodoRepository interface {
 		description *string,
 		completed bool,
 	) (*model.Todo, error)
+
+	Delete(
+		ctx context.Context,
+		id int64,
+	) error
 }
 
 type TodoService struct {
@@ -94,4 +99,11 @@ func (s *TodoService) UpdateTodo(
 		description,
 		completed,
 	)
+}
+
+func (s *TodoService) DeleteTodo(
+	ctx context.Context,
+	id int64,
+) error {
+	return s.repo.Delete(ctx, id)
 }
