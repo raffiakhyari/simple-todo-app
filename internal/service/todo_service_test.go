@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -190,6 +191,95 @@ func TestGetTodos(t *testing.T) {
 			"expected second todo title %q, got %q",
 			"Build Todo API",
 			todos[1].Title,
+		)
+	}
+}
+
+func TestGetTodo(t *testing.T) {
+	ctx := context.Background()
+
+	expectedTodo := &model.Todo{
+		ID:        1,
+		Title:     "Learn Go",
+		Completed: false,
+	}
+
+	repo := &mockTodoRepository{
+		findByIDFunc: func(
+			ctx context.Context,
+			id int64,
+		) (*model.Todo, error) {
+			if id != 1 {
+				t.Fatalf("expected ID 1, got %d", id)
+			}
+
+			return expectedTodo, nil
+		},
+	}
+
+	svc := NewTodoService(repo)
+
+	todo, err := svc.GetTodo(ctx, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if todo.ID != expectedTodo.ID {
+		t.Fatalf(
+			"expected ID %d, got %d",
+			expectedTodo.ID,
+			todo.ID,
+		)
+	}
+
+	if todo.Title != expectedTodo.Title {
+		t.Fatalf(
+			"expected title %q, got %q",
+			expectedTodo.Title,
+			todo.Title,
+		)
+	}
+
+	if todo.Completed != expectedTodo.Completed {
+		t.Fatalf(
+			"expected completed %v, got %v",
+			expectedTodo.Completed,
+			todo.Completed,
+		)
+	}
+}
+
+func TestGetTodoRepositoryError(t *testing.T) {
+	ctx := context.Background()
+
+	expectedErr := errors.New("database error")
+
+	repo := &mockTodoRepository{
+		findByIDFunc: func(
+			ctx context.Context,
+			id int64,
+		) (*model.Todo, error) {
+			return nil, expectedErr
+		},
+	}
+
+	svc := NewTodoService(repo)
+
+	todo, err := svc.GetTodo(ctx, 1)
+
+	if todo != nil {
+		t.Fatal("expected todo to be nil")
+	}
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf(
+			"expected error %v, got %v",
+			expectedErr,
+			err,
 		)
 	}
 }

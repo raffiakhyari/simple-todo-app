@@ -58,3 +58,10 @@ func (s *TodoService) GetTodos(
 ) ([]model.Todo, error) {
 	return s.repo.FindAll(ctx)
 }
+
+func (s *TodoService) GetTodo(
+	ctx context.Context,
+	id int64,
+) (*model.Todo, error) {
+	return s.repo.FindByID(ctx, id)
+}
