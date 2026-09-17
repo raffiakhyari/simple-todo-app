@@ -24,6 +24,14 @@ type mockTodoRepository struct {
 		ctx context.Context,
 		id int64,
 	) (*model.Todo, error)
+
+	updateFunc func(
+		ctx context.Context,
+		id int64,
+		title string,
+		description *string,
+		completed bool,
+	) (*model.Todo, error)
 }
 
 func (m *mockTodoRepository) Create(
@@ -45,6 +53,22 @@ func (m *mockTodoRepository) FindByID(
 	id int64,
 ) (*model.Todo, error) {
 	return m.findByIDFunc(ctx, id)
+}
+
+func (m *mockTodoRepository) Update(
+	ctx context.Context,
+	id int64,
+	title string,
+	description *string,
+	completed bool,
+) (*model.Todo, error) {
+	return m.updateFunc(
+		ctx,
+		id,
+		title,
+		description,
+		completed,
+	)
 }
 
 func TestCreateTodo(t *testing.T) {
