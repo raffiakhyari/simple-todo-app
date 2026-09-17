@@ -41,8 +41,6 @@ type TodoRepository interface {
 		ctx context.Context,
 		id int64,
 	) error
-
-	
 }
 
 type TodoService struct {
