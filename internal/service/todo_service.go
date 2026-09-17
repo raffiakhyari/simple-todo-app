@@ -2,11 +2,16 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/raffi/todo-app/internal/model"
 )
+
+var ErrTodoNotFound = errors.New("todo not found")
 
 type TodoRepository interface {
 	Create(
@@ -36,6 +41,8 @@ type TodoRepository interface {
 		ctx context.Context,
 		id int64,
 	) error
+
+	
 }
 
 type TodoService struct {
@@ -76,7 +83,16 @@ func (s *TodoService) GetTodo(
 	ctx context.Context,
 	id int64,
 ) (*model.Todo, error) {
-	return s.repo.FindByID(ctx, id)
+	todo, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrTodoNotFound
+		}
+
+		return nil, err
+	}
+
+	return todo, nil
 }
 
 func (s *TodoService) UpdateTodo(
