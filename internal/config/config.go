@@ -1,10 +1,13 @@
 package config
 
-import "os"
+import (
+	"os"
+
+	"github.com/joho/godotenv"
+)
 
 type Config struct {
-	AppPort string
-
+	AppPort    string
 	DBHost     string
 	DBPort     string
 	DBUser     string
@@ -14,24 +17,15 @@ type Config struct {
 }
 
 func Load() Config {
+	_ = godotenv.Load()
+
 	return Config{
-		AppPort: getEnv("APP_PORT", "8080"),
-
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBUser:     getEnv("DB_USER", "todo-app"),
-		DBPassword: getEnv("DB_PASSWORD", "testpassword"),
-		DBName:     getEnv("DB_NAME", "todo-app"),
-		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
+		AppPort:    os.Getenv("APP_PORT"),
+		DBHost:     os.Getenv("DB_HOST"),
+		DBPort:     os.Getenv("DB_PORT"),
+		DBUser:     os.Getenv("DB_USER"),
+		DBPassword: os.Getenv("DB_PASSWORD"),
+		DBName:     os.Getenv("DB_NAME"),
+		DBSSLMode:  os.Getenv("DB_SSLMODE"),
 	}
-}
-
-func getEnv(key, fallback string) string {
-	value := os.Getenv(key)
-
-	if value == "" {
-		return fallback
-	}
-
-	return value
 }
