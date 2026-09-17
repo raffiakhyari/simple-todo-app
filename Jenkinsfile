@@ -3,8 +3,9 @@ pipeline {
     agent any
 
     environment {
-        REGISTRY = 'docker.io'
-        DOCKER_DEV = 'raffiakhyari/todo-api-dev'
+        REGISTRY   = 'docker.io'
+
+        DOCKER_DEV  = 'raffiakhyari/todo-api-dev'
         DOCKER_PROD = 'raffiakhyari/todo-api'
     }
 
@@ -12,6 +13,8 @@ pipeline {
         timestamps()
 
         disableConcurrentBuilds()
+
+        skipDefaultCheckout(true)
 
         buildDiscarder(
             logRotator(
@@ -33,7 +36,7 @@ pipeline {
 
                 script {
                     env.AUTHOR_NAME = sh(
-                        script: "git log -n 1 ${env.GIT_COMMIT} --format=%aN",
+                        script: "git log -1 --format=%aN ${env.GIT_COMMIT}",
                         returnStdout: true
                     ).trim()
 
@@ -58,7 +61,7 @@ pipeline {
         }
 
         // ==========================================
-        // 2. Prepare Image Name
+        // 2. Prepare Docker Image
         // ==========================================
         stage('Prepare Image') {
             steps {
@@ -106,9 +109,13 @@ pipeline {
                     echo "=========================================="
 
                     if [ -n "$(gofmt -l .)" ]; then
-                        echo "ERROR: The following files are not formatted:"
 
+                        echo "ERROR: The following files are not formatted:"
                         gofmt -l .
+
+                        echo ""
+                        echo "Please run:"
+                        echo "gofmt -w ."
 
                         exit 1
                     fi
@@ -205,7 +212,7 @@ pipeline {
         }
 
         // ==========================================
-        // 7. Push Image
+        // 7. Push Docker Image
         // ==========================================
         stage('Push Image') {
             steps {
@@ -245,14 +252,14 @@ pipeline {
                         echo "=========================================="
                         echo "Push SUCCESS"
                         echo "=========================================="
-                    }
+                    '''
                 }
             }
         }
     }
 
     // ==========================================
-    // Post
+    // Post Actions
     // ==========================================
     post {
 
@@ -272,7 +279,7 @@ pipeline {
             """
         }
 
-        ailure {
+        failure {
             echo """
             ==========================================
             PIPELINE FAILED
@@ -288,9 +295,13 @@ pipeline {
 
         always {
             script {
+
                 if (env.IMAGE) {
+
                     sh """
-                        echo "Cleaning local image..."
+                        echo "=========================================="
+                        echo "Cleaning Local Docker Image"
+                        echo "=========================================="
 
                         docker image rm \
                             "${env.IMAGE}" \
