@@ -14,6 +14,10 @@ type TodoRepository interface {
 		title string,
 		description *string,
 	) (*model.Todo, error)
+
+	FindAll(
+		ctx context.Context,
+	) ([]model.Todo, error)
 }
 
 type TodoService struct {
@@ -42,4 +46,10 @@ func (s *TodoService) CreateTodo(
 		title,
 		description,
 	)
+}
+
+func (s *TodoService) GetTodos(
+	ctx context.Context,
+) ([]model.Todo, error) {
+	return s.repo.FindAll(ctx)
 }

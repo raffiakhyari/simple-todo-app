@@ -66,3 +66,43 @@ func TestTodoRepositoryCreate(t *testing.T) {
 		t.Fatal("expected todo to be incomplete")
 	}
 }
+
+func TestTodoRepositoryFindAll(t *testing.T) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	db, err := pgxpool.New(
+		ctx,
+		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+	)
+	if err != nil {
+		t.Fatalf("failed to create database pool: %v", err)
+	}
+
+	defer db.Close()
+
+	repo := NewTodoRepository(db)
+
+	description := "Repository test"
+
+	_, err = repo.Create(
+		ctx,
+		"Find All Test",
+		&description,
+	)
+	if err != nil {
+		t.Fatalf("failed to create todo: %v", err)
+	}
+
+	todos, err := repo.FindAll(ctx)
+	if err != nil {
+		t.Fatalf("failed to find todos: %v", err)
+	}
+
+	if len(todos) == 0 {
+		t.Fatal("expected at least one todo")
+	}
+}

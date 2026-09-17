@@ -14,6 +14,10 @@ type mockTodoRepository struct {
 		title string,
 		description *string,
 	) (*model.Todo, error)
+
+	findAllFunc func(
+		ctx context.Context,
+	) ([]model.Todo, error)
 }
 
 func (m *mockTodoRepository) Create(
@@ -22,6 +26,12 @@ func (m *mockTodoRepository) Create(
 	description *string,
 ) (*model.Todo, error) {
 	return m.createFunc(ctx, title, description)
+}
+
+func (m *mockTodoRepository) FindAll(
+	ctx context.Context,
+) ([]model.Todo, error) {
+	return m.findAllFunc(ctx)
 }
 
 func TestCreateTodo(t *testing.T) {
@@ -39,6 +49,12 @@ func TestCreateTodo(t *testing.T) {
 				CreatedAt:   time.Now(),
 				UpdatedAt:   time.Now(),
 			}, nil
+		},
+
+		findAllFunc: func(
+			ctx context.Context,
+		) ([]model.Todo, error) {
+			return nil, nil
 		},
 	}
 
@@ -76,6 +92,12 @@ func TestCreateTodoRequiresTitle(t *testing.T) {
 
 			return nil, nil
 		},
+
+		findAllFunc: func(
+			ctx context.Context,
+		) ([]model.Todo, error) {
+			return nil, nil
+		},
 	}
 
 	svc := NewTodoService(repo)
@@ -95,6 +117,67 @@ func TestCreateTodoRequiresTitle(t *testing.T) {
 			"expected error %q, got %q",
 			"title is required",
 			err.Error(),
+		)
+	}
+}
+
+func TestGetTodos(t *testing.T) {
+	expectedTodos := []model.Todo{
+		{
+			ID:        1,
+			Title:     "Learn Go",
+			Completed: false,
+		},
+		{
+			ID:        2,
+			Title:     "Build Todo API",
+			Completed: true,
+		},
+	}
+
+	repo := &mockTodoRepository{
+		createFunc: func(
+			ctx context.Context,
+			title string,
+			description *string,
+		) (*model.Todo, error) {
+			return nil, nil
+		},
+
+		findAllFunc: func(
+			ctx context.Context,
+		) ([]model.Todo, error) {
+			return expectedTodos, nil
+		},
+	}
+
+	svc := NewTodoService(repo)
+
+	todos, err := svc.GetTodos(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(todos) != 2 {
+		t.Fatalf(
+			"expected 2 todos, got %d",
+			len(todos),
+		)
+	}
+
+	if todos[0].Title != "Learn Go" {
+		t.Fatalf(
+			"expected first todo title %q, got %q",
+			"Learn Go",
+			todos[0].Title,
+		)
+	}
+
+	if todos[1].Title != "Build Todo API" {
+		t.Fatalf(
+			"expected second todo title %q, got %q",
+			"Build Todo API",
+			todos[1].Title,
 		)
 	}
 }
