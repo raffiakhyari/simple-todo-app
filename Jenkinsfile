@@ -3,15 +3,18 @@ pipeline {
     agent any
 
     environment {
-        REGISTRY   = 'docker.io'
+        REGISTRY    = 'docker.io'
         DOCKER_DEV  = 'raffiakhyari/todo-api-dev'
         DOCKER_PROD = 'raffiakhyari/todo-api'
     }
 
     options {
         timestamps()
+
         disableConcurrentBuilds()
+
         skipDefaultCheckout(true)
+
         buildDiscarder(
             logRotator(
                 numToKeepStr: '10'
@@ -24,13 +27,17 @@ pipeline {
         // ==========================================
         // 1. Checkout
         // ==========================================
+
         stage('Git') {
+
             steps {
+
                 step([$class: 'WsCleanup'])
 
                 checkout scm
 
                 script {
+
                     env.AUTHOR_NAME = sh(
                         script: "git log -1 --format=%aN ${env.GIT_COMMIT}",
                         returnStdout: true
@@ -45,31 +52,47 @@ pipeline {
                     ==========================================
                     BUILD INFORMATION
                     ==========================================
+
                     Branch  : ${env.BRANCH_NAME}
                     Commit  : ${env.GIT_COMMIT}
                     Author  : ${env.AUTHOR_NAME}
                     Message : ${env.COMMIT_MESSAGE}
                     Build   : ${env.BUILD_NUMBER}
+
                     ==========================================
                     """
                 }
             }
         }
 
+
         // ==========================================
         // 2. Prepare Docker Image
         // ==========================================
+
         stage('Prepare Image') {
+
             steps {
+
                 script {
 
                     if (env.BRANCH_NAME == 'main') {
 
                         env.DOCKER_NAME = env.DOCKER_PROD
 
-                    } else {
+                        env.DEPLOY_ENV = 'production'
+
+                    } else if (env.BRANCH_NAME == 'develop') {
 
                         env.DOCKER_NAME = env.DOCKER_DEV
+
+                        env.DEPLOY_ENV = 'dev'
+
+                    } else {
+
+                        error(
+                            "Unsupported branch for CI/CD: ${env.BRANCH_NAME}"
+                        )
                     }
 
                     env.IMAGE = "${env.DOCKER_NAME}:${env.BUILD_NUMBER}"
@@ -78,20 +101,28 @@ pipeline {
                     ==========================================
                     DOCKER IMAGE
                     ==========================================
-                    Branch : ${env.BRANCH_NAME}
-                    Image  : ${env.IMAGE}
+
+                    Branch      : ${env.BRANCH_NAME}
+                    Environment : ${env.DEPLOY_ENV}
+                    Image       : ${env.IMAGE}
+
                     ==========================================
                     """
                 }
             }
         }
 
+
         // ==========================================
         // 3. Lint
         // ==========================================
+
         stage('Lint') {
+
             steps {
+
                 sh '''
+
                     set -e
 
                     echo "=========================================="
@@ -107,13 +138,17 @@ pipeline {
                     if [ -n "$(gofmt -l .)" ]; then
 
                         echo "ERROR: The following files are not formatted:"
+
                         gofmt -l .
 
                         echo ""
+
                         echo "Please run:"
+
                         echo "gofmt -w ."
 
                         exit 1
+
                     fi
 
                     echo "gofmt passed."
@@ -133,12 +168,17 @@ pipeline {
             }
         }
 
+
         // ==========================================
         // 4. Unit Test
         // ==========================================
+
         stage('Unit Test') {
+
             steps {
+
                 sh '''
+
                     set -e
 
                     echo "=========================================="
@@ -154,12 +194,17 @@ pipeline {
             }
         }
 
+
         // ==========================================
         // 5. Build Docker Image
         // ==========================================
+
         stage('Build Image') {
+
             steps {
+
                 sh '''
+
                     set -e
 
                     echo "=========================================="
@@ -182,12 +227,17 @@ pipeline {
             }
         }
 
+
         // ==========================================
         // 6. Trivy Vulnerability Scan
         // ==========================================
+
         stage('Trivy Scan') {
+
             steps {
+
                 sh '''
+
                     set -e
 
                     echo "=========================================="
@@ -207,21 +257,27 @@ pipeline {
             }
         }
 
+
         // ==========================================
         // 7. Push Docker Image
         // ==========================================
+
         stage('Push Image') {
+
             steps {
 
                 withCredentials([
+
                     usernamePassword(
                         credentialsId: 'dockerhub-credentials',
                         usernameVariable: 'DOCKER_USERNAME',
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
+
                 ]) {
 
                     sh '''
+
                         set -e
 
                         echo "=========================================="
@@ -254,28 +310,64 @@ pipeline {
         }
     }
 
+
     // ==========================================
     // Post Actions
     // ==========================================
+
     post {
+
+        // ==========================================
+        // CI SUCCESS → TRIGGER CD
+        // ==========================================
 
         success {
             echo """
             ==========================================
             PIPELINE SUCCESS
             ==========================================
-
             Application : todo-api
             Branch      : ${env.BRANCH_NAME}
             Build       : ${env.BUILD_NUMBER}
             Image       : ${env.IMAGE}
             Author      : ${env.AUTHOR_NAME}
-
             ==========================================
             """
+
+            script {
+                def cdJob = "todo-api-delivery/${env.BRANCH_NAME}"
+
+                echo """
+                ==========================================
+                TRIGGER CD
+                ==========================================
+                CD Job : ${cdJob}
+                Image  : ${env.IMAGE}
+                Tag    : ${env.BUILD_NUMBER}
+                ==========================================
+                """
+
+                build job: cdJob,
+                    parameters: [
+                        string(
+                            name: 'IMAGE_REPO',
+                            value: env.DOCKER_NAME
+                        ),
+                        string(
+                            name: 'IMAGE_TAG',
+                            value: env.BUILD_NUMBER
+                        )
+                    ],
+                    wait: false
+            }
         }
 
+        // ==========================================
+        // CI FAILURE
+        // ==========================================
+
         failure {
+
             echo """
             ==========================================
             PIPELINE FAILED
@@ -285,16 +377,24 @@ pipeline {
             Branch      : ${env.BRANCH_NAME}
             Build       : ${env.BUILD_NUMBER}
 
+            CD WILL NOT BE TRIGGERED
+
             ==========================================
             """
         }
 
+        // ==========================================
+        // ALWAYS
+        // ==========================================
+
         always {
+
             script {
 
                 if (env.IMAGE) {
 
                     sh """
+
                         echo "=========================================="
                         echo "Cleaning Local Docker Image"
                         echo "=========================================="

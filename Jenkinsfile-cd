@@ -1,0 +1,283 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(
+            name: 'IMAGE_REPO',
+            description: 'Docker image repository'
+        )
+
+        string(
+            name: 'IMAGE_TAG',
+            description: 'Docker image tag'
+        )
+    }
+
+    environment {
+        K8S_REPO = 'git@github.com:raffiakhyari/k8s-todo.git'
+        K8S_CREDENTIALS = 'github-k8s'
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+
+        buildDiscarder(
+            logRotator(
+                numToKeepStr: '10'
+            )
+        )
+    }
+
+    stages {
+
+        // ============================================================
+        // VALIDATE
+        // ============================================================
+
+        stage('Validate') {
+            steps {
+                script {
+
+                    if (env.BRANCH_NAME == 'develop') {
+
+                        env.DEPLOY_ENV = 'dev'
+                        env.K8S_NAMESPACE = 'todo-dev'
+                        env.K8S_OVERLAY = 'overlays/dev/todo-api'
+
+                        if (params.IMAGE_REPO != 'raffiakhyari/todo-api-dev') {
+                            error(
+                                "Invalid image repository for develop: ${params.IMAGE_REPO}"
+                            )
+                        }
+
+                    } else if (env.BRANCH_NAME == 'main') {
+
+                        env.DEPLOY_ENV = 'production'
+                        env.K8S_NAMESPACE = 'todo-production'
+                        env.K8S_OVERLAY = 'overlays/production/todo-api'
+
+                        if (params.IMAGE_REPO != 'raffiakhyari/todo-api') {
+                            error(
+                                "Invalid image repository for main: ${params.IMAGE_REPO}"
+                            )
+                        }
+
+                    } else {
+
+                        error(
+                            "Unsupported deployment branch: ${env.BRANCH_NAME}"
+                        )
+                    }
+
+                    if (!params.IMAGE_TAG?.trim()) {
+                        error("IMAGE_TAG cannot be empty")
+                    }
+
+                    env.IMAGE = "${params.IMAGE_REPO}:${params.IMAGE_TAG}"
+
+                    echo """
+                    ==========================================
+                    DEPLOYMENT INFORMATION
+                    ==========================================
+                    Branch      : ${env.BRANCH_NAME}
+                    Environment : ${env.DEPLOY_ENV}
+                    Namespace   : ${env.K8S_NAMESPACE}
+                    Overlay     : ${env.K8S_OVERLAY}
+                    Image       : ${env.IMAGE}
+                    Image Repo  : ${params.IMAGE_REPO}
+                    Image Tag   : ${params.IMAGE_TAG}
+                    Build       : ${env.BUILD_NUMBER}
+                    ==========================================
+                    """
+                }
+            }
+        }
+
+        // ============================================================
+        // CHECKOUT K8S REPOSITORY
+        // ============================================================
+
+        stage('Checkout') {
+            steps {
+                script {
+
+                    echo """
+                    ==========================================
+                    CHECKOUT K8S REPOSITORY
+                    ==========================================
+                    Repository : ${env.K8S_REPO}
+                    Branch     : ${env.BRANCH_NAME}
+                    ==========================================
+                    """
+
+                    step([$class: 'WsCleanup'])
+
+                    git(
+                        branch: 'main',
+                        credentialsId: env.K8S_CREDENTIALS,
+                        url: env.K8S_REPO
+                    )
+
+                    sh '''
+                        set -e
+
+                        echo "=========================================="
+                        echo "Git Information"
+                        echo "=========================================="
+
+                        git remote -v
+                        git branch --show-current
+                        git log -1 --oneline
+
+                        echo "=========================================="
+                        echo "Kubernetes Repository"
+                        echo "=========================================="
+
+                        find k8s -maxdepth 4 -type f | sort
+                    '''
+                }
+            }
+        }
+
+        // ============================================================
+        // PREPARE NAMESPACE
+        // ============================================================
+
+        stage('Prepare Namespace') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "=========================================="
+                    echo "PREPARE KUBERNETES NAMESPACE"
+                    echo "=========================================="
+
+                    kubectl apply \
+                        -f "overlays/${DEPLOY_ENV}/namespace.yaml"
+
+                    echo "=========================================="
+                    echo "Namespace"
+                    echo "=========================================="
+
+                    kubectl get namespace "${K8S_NAMESPACE}"
+                '''
+            }
+        }
+
+        // ============================================================
+        // UPDATE IMAGE
+        // ============================================================
+
+        stage('Update Image') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "=========================================="
+                    echo "UPDATE IMAGE"
+                    echo "=========================================="
+
+                    cd "${K8S_OVERLAY}"
+
+                    echo "Before:"
+                    cat kustomization.yaml
+
+                    kustomize edit set image \
+                        "todo-api=${IMAGE}"
+
+                    echo "After:"
+                    cat kustomization.yaml
+                '''
+            }
+        }
+
+        // ============================================================
+        // RENDER MANIFEST
+        // ============================================================
+
+        stage('Render Manifest') {
+            steps {
+                sh '''
+                    set -e
+
+                    kustomize build "${K8S_OVERLAY}" > rendered.yaml
+
+                    echo "=========================================="
+                    echo "IMAGE IN RENDERED MANIFEST"
+                    echo "=========================================="
+
+                    grep -n "image:" rendered.yaml
+                '''
+            }
+        }
+
+        // ============================================================
+        // DEPLOY
+        // ============================================================
+
+        stage('Deploy') {
+            steps {
+                sh '''
+                    set -e
+
+                    kubectl apply \
+                        -k "${K8S_OVERLAY}" \
+                        -n "${K8S_NAMESPACE}"
+                '''
+            }
+        }
+
+        // ============================================================
+        // ROLLOUT
+        // ============================================================
+
+        stage('Rollout') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "=========================================="
+                    echo "WAITING FOR ROLLOUT"
+                    echo "=========================================="
+
+                    kubectl rollout status \
+                        deployment/todo-api \
+                        -n "${K8S_NAMESPACE}" \
+                        --timeout=120s
+                '''
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo """
+            ==========================================
+            CD PIPELINE SUCCESS
+            ==========================================
+            Application : todo-api
+            Branch      : ${env.BRANCH_NAME}
+            Environment : ${env.DEPLOY_ENV}
+            Namespace   : ${env.K8S_NAMESPACE}
+            Image       : ${env.IMAGE}
+            ==========================================
+            """
+        }
+
+        failure {
+            echo """
+            ==========================================
+            CD PIPELINE FAILED
+            ==========================================
+            Application : todo-api
+            Branch      : ${env.BRANCH_NAME}
+            Environment : ${env.DEPLOY_ENV}
+            Namespace   : ${env.K8S_NAMESPACE}
+            Image       : ${env.IMAGE}
+            ==========================================
+            """
+        }
+    }
+}
