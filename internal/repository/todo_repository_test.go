@@ -17,7 +17,7 @@ func TestTodoRepositoryCreate(t *testing.T) {
 
 	db, err := pgxpool.New(
 		ctx,
-		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+		"postgres://todo-app:testpassword@host.docker.internal:5432/todo-app?sslmode=disable",
 	)
 	if err != nil {
 		t.Fatalf("failed to create database pool: %v", err)
@@ -76,7 +76,7 @@ func TestTodoRepositoryFindAll(t *testing.T) {
 
 	db, err := pgxpool.New(
 		ctx,
-		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+		"postgres://todo-app:testpassword@host.docker.internal:5432/todo-app?sslmode=disable",
 	)
 	if err != nil {
 		t.Fatalf("failed to create database pool: %v", err)
@@ -116,7 +116,7 @@ func TestTodoRepositoryFindByID(t *testing.T) {
 
 	db, err := pgxpool.New(
 		ctx,
-		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+		"postgres://todo-app:testpassword@host.docker.internal:5432/todo-app?sslmode=disable",
 	)
 	if err != nil {
 		t.Fatalf("failed to create database pool: %v", err)
@@ -190,7 +190,7 @@ func TestTodoRepositoryUpdate(t *testing.T) {
 
 	db, err := pgxpool.New(
 		ctx,
-		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+		"postgres://todo-app:testpassword@host.docker.internal:5432/todo-app?sslmode=disable",
 	)
 	if err != nil {
 		t.Fatalf("failed to create database pool: %v", err)
@@ -273,7 +273,7 @@ func TestTodoRepositoryDelete(t *testing.T) {
 
 	db, err := pgxpool.New(
 		ctx,
-		"postgres://todo-app:testpassword@localhost:5432/todo-app?sslmode=disable",
+		"postgres://todo-app:testpassword@host.docker.internal:5432/todo-app?sslmode=disable",
 	)
 	if err != nil {
 		t.Fatalf("failed to create database pool: %v", err)

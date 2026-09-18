@@ -4,18 +4,14 @@ pipeline {
 
     environment {
         REGISTRY   = 'docker.io'
-
         DOCKER_DEV  = 'raffiakhyari/todo-api-dev'
         DOCKER_PROD = 'raffiakhyari/todo-api'
     }
 
     options {
         timestamps()
-
         disableConcurrentBuilds()
-
         skipDefaultCheckout(true)
-
         buildDiscarder(
             logRotator(
                 numToKeepStr: '10'
