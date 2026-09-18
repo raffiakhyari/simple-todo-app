@@ -43,7 +43,7 @@ pipeline {
 
                         env.DEPLOY_ENV = 'dev'
                         env.K8S_NAMESPACE = 'todo-dev'
-                        env.K8S_OVERLAY = 'k8s/overlays/dev/todo-api'
+                        env.K8S_OVERLAY = 'overlays/dev/todo-api'
 
                         if (params.IMAGE_REPO != 'raffiakhyari/todo-api-dev') {
                             error(
@@ -55,7 +55,7 @@ pipeline {
 
                         env.DEPLOY_ENV = 'production'
                         env.K8S_NAMESPACE = 'todo-production'
-                        env.K8S_OVERLAY = 'k8s/overlays/production/todo-api'
+                        env.K8S_OVERLAY = 'overlays/production/todo-api'
 
                         if (params.IMAGE_REPO != 'raffiakhyari/todo-api') {
                             error(
@@ -154,7 +154,7 @@ pipeline {
                     echo "=========================================="
 
                     kubectl apply \
-                        -f "k8s/overlays/${DEPLOY_ENV}/namespace.yaml"
+                        -f "overlays/${DEPLOY_ENV}/namespace.yaml"
 
                     echo "=========================================="
                     echo "Namespace"
