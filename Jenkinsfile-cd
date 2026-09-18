@@ -114,7 +114,7 @@ pipeline {
                     step([$class: 'WsCleanup'])
 
                     git(
-                        branch: env.BRANCH_NAME,
+                        branch: 'main',
                         credentialsId: env.K8S_CREDENTIALS,
                         url: env.K8S_REPO
                     )
