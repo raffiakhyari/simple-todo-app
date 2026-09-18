@@ -178,18 +178,16 @@ pipeline {
                     echo "UPDATE IMAGE"
                     echo "=========================================="
 
-                    echo "Image Repository : ${IMAGE_REPO}"
-                    echo "Image Tag        : ${IMAGE_TAG}"
-                    echo "Image            : ${IMAGE}"
-                    echo "Overlay          : ${K8S_OVERLAY}"
-
                     cd "${K8S_OVERLAY}"
 
+                    echo "Before:"
+                    cat kustomization.yaml
+
                     kustomize edit set image \
-                        "${IMAGE_REPO}=${IMAGE}"
+                        "todo-api=${IMAGE}"
 
                     echo "=========================================="
-                    echo "Updated Kustomization"
+                    echo "After:"
                     echo "=========================================="
 
                     cat kustomization.yaml
@@ -206,19 +204,13 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "=========================================="
-                    echo "RENDER KUBERNETES MANIFEST"
-                    echo "=========================================="
-
-                    echo "Overlay: ${K8S_OVERLAY}"
-
                     kustomize build "${K8S_OVERLAY}" > rendered.yaml
 
                     echo "=========================================="
-                    echo "Rendered Manifest"
+                    echo "IMAGE IN RENDERED MANIFEST"
                     echo "=========================================="
 
-                    cat rendered.yaml
+                    grep -n "image:" rendered.yaml
                 '''
             }
         }
@@ -232,16 +224,9 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "=========================================="
-                    echo "DEPLOY TO KUBERNETES"
-                    echo "=========================================="
-
-                    echo "Environment : ${DEPLOY_ENV}"
-                    echo "Namespace   : ${K8S_NAMESPACE}"
-                    echo "Image       : ${IMAGE}"
-
                     kubectl apply \
-                        -k "${K8S_OVERLAY}"
+                        -k "${K8S_OVERLAY}" \
+                        -n "${K8S_NAMESPACE}"
                 '''
             }
         }
