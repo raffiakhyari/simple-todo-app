@@ -322,76 +322,43 @@ pipeline {
         // ==========================================
 
         success {
+            echo """
+            ==========================================
+            PIPELINE SUCCESS
+            ==========================================
+            Application : todo-api
+            Branch      : ${env.BRANCH_NAME}
+            Build       : ${env.BUILD_NUMBER}
+            Image       : ${env.IMAGE}
+            Author      : ${env.AUTHOR_NAME}
+            ==========================================
+            """
 
             script {
+                def cdJob = "todo-api-delivery/${env.BRANCH_NAME}"
 
                 echo """
                 ==========================================
-                PIPELINE SUCCESS
+                TRIGGER CD
                 ==========================================
-
-                Application : todo-api
-                Branch      : ${env.BRANCH_NAME}
-                Build       : ${env.BUILD_NUMBER}
-                Image       : ${env.IMAGE}
-                Environment : ${env.DEPLOY_ENV}
-                Author      : ${env.AUTHOR_NAME}
-
+                CD Job : ${cdJob}
+                Image  : ${env.IMAGE}
+                Tag    : ${env.BUILD_NUMBER}
                 ==========================================
                 """
 
-                if (
-                    env.BRANCH_NAME == 'develop' ||
-                    env.BRANCH_NAME == 'main'
-                ) {
-
-                    echo """
-                    ==========================================
-                    TRIGGERING CD
-                    ==========================================
-
-                    Job         : todo-api-delivery
-                    Image Repo  : ${env.DOCKER_NAME}
-                    Image Tag   : ${env.BUILD_NUMBER}
-                    Environment : ${env.DEPLOY_ENV}
-
-                    ==========================================
-                    """
-
-                    build job: 'todo-api-delivery',
-                        parameters: [
-
-                            string(
-                                name: 'IMAGE_REPO',
-                                value: env.DOCKER_NAME
-                            ),
-
-                            string(
-                                name: 'IMAGE_TAG',
-                                value: env.BUILD_NUMBER
-                            ),
-
-                            string(
-                                name: 'ENVIRONMENT',
-                                value: env.DEPLOY_ENV
-                            )
-
-                        ],
-                        wait: false
-
-                } else {
-
-                    echo """
-                    ==========================================
-                    CD SKIPPED
-                    ==========================================
-
-                    Branch ${env.BRANCH_NAME} is not configured
-                    for automatic deployment.
-
-                    ==========================================
-                    """
-                }
+                build job: cdJob,
+                    parameters: [
+                        string(
+                            name: 'IMAGE_REPO',
+                            value: env.DOCKER_NAME
+                        ),
+                        string(
+                            name: 'IMAGE_TAG',
+                            value: env.BUILD_NUMBER
+                        )
+                    ],
+                    wait: false
             }
         }
 
