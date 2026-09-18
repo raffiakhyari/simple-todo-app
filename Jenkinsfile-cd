@@ -3,44 +3,139 @@ pipeline {
 
     parameters {
         string(
+            name: 'IMAGE_REPO',
+            defaultValue: '',
+            description: 'Docker image repository'
+        )
+
+        string(
             name: 'IMAGE_TAG',
             defaultValue: '',
             description: 'Docker image tag produced by CI'
         )
+
+        choice(
+            name: 'ENVIRONMENT',
+            choices: [
+                'dev',
+                'production'
+            ],
+            description: 'Deployment environment'
+        )
     }
 
     environment {
-        IMAGE_REPO = 'raffiakhyari/todo-api'
+        APP_NAME = 'todo-api'
+
+        DEV_NAMESPACE = 'todo-dev'
+        PROD_NAMESPACE = 'todo-prod'
+
+        DEPLOYMENT_NAME = 'todo-api'
+        CONTAINER_NAME = 'todo-api'
     }
 
     stages {
 
+        // ============================================================
+        // VALIDATE
+        // ============================================================
+
         stage('Validate') {
             steps {
                 script {
+
+                    if (!params.IMAGE_REPO?.trim()) {
+                        error('IMAGE_REPO is required')
+                    }
+
                     if (!params.IMAGE_TAG?.trim()) {
                         error('IMAGE_TAG is required')
+                    }
+
+                    def expectedRepo = ''
+
+                    if (params.ENVIRONMENT == 'dev') {
+                        expectedRepo = 'raffiakhyari/todo-api-dev'
+                    } else if (params.ENVIRONMENT == 'production') {
+                        expectedRepo = 'raffiakhyari/todo-api'
+                    }
+
+                    if (params.IMAGE_REPO != expectedRepo) {
+                        error(
+                            "Invalid IMAGE_REPO for ${params.ENVIRONMENT}. " +
+                            "Expected: ${expectedRepo}, " +
+                            "Received: ${params.IMAGE_REPO}"
+                        )
                     }
 
                     echo """
                     ==========================================
                     CD DEPLOYMENT
                     ==========================================
-                    Application : todo-api
-                    Image       : ${IMAGE_REPO}:${IMAGE_TAG}
+
+                    Application : ${APP_NAME}
+                    Environment : ${params.ENVIRONMENT}
+                    Image       : ${params.IMAGE_REPO}:${params.IMAGE_TAG}
                     CD Build    : ${BUILD_NUMBER}
+
                     ==========================================
                     """
                 }
             }
         }
 
+
+        // ============================================================
+        // SET ENVIRONMENT
+        // ============================================================
+
+        stage('Set Environment') {
+            steps {
+                script {
+
+                    if (params.ENVIRONMENT == 'dev') {
+
+                        env.K8S_NAMESPACE = env.DEV_NAMESPACE
+                        env.K8S_OVERLAY = 'dev'
+
+                    } else if (params.ENVIRONMENT == 'production') {
+
+                        env.K8S_NAMESPACE = env.PROD_NAMESPACE
+                        env.K8S_OVERLAY = 'production'
+
+                    } else {
+
+                        error("Unsupported environment: ${params.ENVIRONMENT}")
+                    }
+
+                    echo """
+                    ==========================================
+                    DEPLOYMENT TARGET
+                    ==========================================
+
+                    Environment : ${params.ENVIRONMENT}
+                    Namespace   : ${env.K8S_NAMESPACE}
+                    Overlay     : ${env.K8S_OVERLAY}
+
+                    ==========================================
+                    """
+                }
+            }
+        }
+
+
+        // ============================================================
+        // VERIFY IMAGE
+        // ============================================================
+
         stage('Verify Image') {
             steps {
                 script {
-                    def image = "${IMAGE_REPO}:${IMAGE_TAG}"
 
-                    echo "Verifying Docker image: ${image}"
+                    def image = "${params.IMAGE_REPO}:${params.IMAGE_TAG}"
+
+                    echo "Pulling Docker image:"
+                    echo "${image}"
 
                     sh """
                         docker pull ${image}
@@ -50,28 +145,199 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+
+        // ============================================================
+        // KUBERNETES CONTEXT
+        // ============================================================
+
+        stage('Kubernetes Context') {
             steps {
-                echo "Deployment stage"
-                echo "Kubernetes deployment will be added here"
+                sh '''
+                    echo "=========================================="
+                    echo "KUBERNETES CONTEXT"
+                    echo "=========================================="
+
+                    kubectl config current-context
+
+                    echo ""
+                    echo "Cluster:"
+                    kubectl cluster-info
+
+                    echo ""
+                    echo "Namespace:"
+                    kubectl get namespace "${K8S_NAMESPACE}"
+                '''
             }
         }
 
+
+        // ============================================================
+        // DEPLOY
+        // ============================================================
+
+        stage('Deploy') {
+            steps {
+                script {
+
+                    def image = "${params.IMAGE_REPO}:${params.IMAGE_TAG}"
+
+                    echo """
+                    ==========================================
+                    DEPLOYING
+                    ==========================================
+
+                    Application : ${APP_NAME}
+                    Environment : ${params.ENVIRONMENT}
+                    Namespace   : ${env.K8S_NAMESPACE}
+                    Image       : ${image}
+
+                    ==========================================
+                    """
+
+                    sh """
+                        kubectl apply \
+                            -k k8s/overlays/${K8S_OVERLAY}
+                    """
+
+                    sh """
+                        kubectl -n ${K8S_NAMESPACE} \
+                            set image deployment/${DEPLOYMENT_NAME} \
+                            ${CONTAINER_NAME}=${image}
+                    """
+
+                    sh """
+                        kubectl -n ${K8S_NAMESPACE} \
+                            annotate deployment/${DEPLOYMENT_NAME} \
+                            app.kubernetes.io/image="${image}" \
+                            --overwrite
+                    """
+                }
+            }
+        }
+
+
+        // ============================================================
+        // ROLLOUT
+        // ============================================================
+
+        stage('Rollout Status') {
+            steps {
+                script {
+
+                    try {
+
+                        sh """
+                            kubectl -n ${K8S_NAMESPACE} \
+                                rollout status \
+                                deployment/${DEPLOYMENT_NAME} \
+                                --timeout=180s
+                        """
+
+                    } catch (Exception e) {
+
+                        echo "Deployment rollout failed."
+
+                        echo "Collecting deployment information..."
+
+                        sh """
+                            kubectl -n ${K8S_NAMESPACE} \
+                                get deployment ${DEPLOYMENT_NAME} -o wide || true
+
+                            echo ""
+
+                            kubectl -n ${K8S_NAMESPACE} \
+                                get pods -o wide || true
+
+                            echo ""
+
+                            kubectl -n ${K8S_NAMESPACE} \
+                                describe deployment ${DEPLOYMENT_NAME} || true
+
+                            echo ""
+
+                            kubectl -n ${K8S_NAMESPACE} \
+                                get events \
+                                --sort-by=.lastTimestamp || true
+                        """
+
+                        echo "Rolling back deployment..."
+
+                        sh """
+                            kubectl -n ${K8S_NAMESPACE} \
+                                rollout undo \
+                                deployment/${DEPLOYMENT_NAME}
+                        """
+
+                        sh """
+                            kubectl -n ${K8S_NAMESPACE} \
+                                rollout status \
+                                deployment/${DEPLOYMENT_NAME} \
+                                --timeout=180s
+                        """
+
+                        error("Deployment failed and rollback was executed.")
+                    }
+                }
+            }
+        }
+
+
+        // ============================================================
+        // VERIFY
+        // ============================================================
+
         stage('Verify Deployment') {
             steps {
-                echo "Deployment verification will be added here"
+                sh '''
+                    echo "=========================================="
+                    echo "DEPLOYMENT VERIFICATION"
+                    echo "=========================================="
+
+                    echo ""
+                    echo "Deployment:"
+                    kubectl -n "${K8S_NAMESPACE}" \
+                        get deployment "${DEPLOYMENT_NAME}" -o wide
+
+                    echo ""
+                    echo "Pods:"
+                    kubectl -n "${K8S_NAMESPACE}" \
+                        get pods -o wide
+
+                    echo ""
+                    echo "Service:"
+                    kubectl -n "${K8S_NAMESPACE}" \
+                        get service "${APP_NAME}" || true
+
+                    echo ""
+                    echo "Image:"
+                    kubectl -n "${K8S_NAMESPACE}" \
+                        get deployment "${DEPLOYMENT_NAME}" \
+                        -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+                    echo ""
+                '''
             }
         }
     }
 
+
+    // ================================================================
+    // POST
+    // ================================================================
+
     post {
+
         success {
             echo """
             ==========================================
             CD SUCCESS
             ==========================================
-            Application : todo-api
-            Image       : ${IMAGE_REPO}:${IMAGE_TAG}
+
+            Application : ${APP_NAME}
+            Environment : ${params.ENVIRONMENT}
+            Namespace   : ${env.K8S_NAMESPACE}
+            Image       : ${params.IMAGE_REPO}:${params.IMAGE_TAG}
+
             ==========================================
             """
         }
@@ -81,10 +347,19 @@ pipeline {
             ==========================================
             CD FAILED
             ==========================================
-            Application : todo-api
-            Image       : ${IMAGE_REPO}:${IMAGE_TAG}
+
+            Application : ${APP_NAME}
+            Environment : ${params.ENVIRONMENT}
+            Image       : ${params.IMAGE_REPO}:${params.IMAGE_TAG}
+
             ==========================================
             """
+        }
+
+        always {
+            echo "Cleaning Jenkins workspace..."
+
+            cleanWs()
         }
     }
 }
