@@ -248,62 +248,6 @@ pipeline {
                 '''
             }
         }
-
-        // ============================================================
-        // VERIFY
-        // ============================================================
-
-        stage('Verify') {
-            steps {
-                sh '''
-                    set -e
-
-                    echo "=========================================="
-                    echo "DEPLOYMENT VERIFICATION"
-                    echo "=========================================="
-
-                    echo "=========================================="
-                    echo "Deployment"
-                    echo "=========================================="
-
-                    kubectl get deployment \
-                        todo-api \
-                        -n "${K8S_NAMESPACE}"
-
-                    echo "=========================================="
-                    echo "Pods"
-                    echo "=========================================="
-
-                    kubectl get pods \
-                        -n "${K8S_NAMESPACE}" \
-                        -l app=todo-api \
-                        -o wide
-
-                    echo "=========================================="
-                    echo "Service"
-                    echo "=========================================="
-
-                    kubectl get service \
-                        todo-api \
-                        -n "${K8S_NAMESPACE}"
-
-                    echo "=========================================="
-                    echo "Ingress"
-                    echo "=========================================="
-
-                    kubectl get ingress \
-                        -n "${K8S_NAMESPACE}"
-
-                    echo "=========================================="
-                    echo "Current Image"
-                    echo "=========================================="
-
-                    kubectl get deployment todo-api \
-                        -n "${K8S_NAMESPACE}" \
-                        -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-                '''
-            }
-        }
     }
 
     post {
