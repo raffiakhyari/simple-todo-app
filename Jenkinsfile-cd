@@ -186,10 +186,7 @@ pipeline {
                     kustomize edit set image \
                         "todo-api=${IMAGE}"
 
-                    echo "=========================================="
                     echo "After:"
-                    echo "=========================================="
-
                     cat kustomization.yaml
                 '''
             }
