@@ -1,0 +1,90 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: '',
+            description: 'Docker image tag produced by CI'
+        )
+    }
+
+    environment {
+        IMAGE_REPO = 'raffiakhyari/todo-api'
+    }
+
+    stages {
+
+        stage('Validate') {
+            steps {
+                script {
+                    if (!params.IMAGE_TAG?.trim()) {
+                        error('IMAGE_TAG is required')
+                    }
+
+                    echo """
+                    ==========================================
+                    CD DEPLOYMENT
+                    ==========================================
+                    Application : todo-api
+                    Image       : ${IMAGE_REPO}:${IMAGE_TAG}
+                    CD Build    : ${BUILD_NUMBER}
+                    ==========================================
+                    """
+                }
+            }
+        }
+
+        stage('Verify Image') {
+            steps {
+                script {
+                    def image = "${IMAGE_REPO}:${IMAGE_TAG}"
+
+                    echo "Verifying Docker image: ${image}"
+
+                    sh """
+                        docker pull ${image}
+                        docker image inspect ${image} > /dev/null
+                    """
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "Deployment stage"
+                echo "Kubernetes deployment will be added here"
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo "Deployment verification will be added here"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo """
+            ==========================================
+            CD SUCCESS
+            ==========================================
+            Application : todo-api
+            Image       : ${IMAGE_REPO}:${IMAGE_TAG}
+            ==========================================
+            """
+        }
+
+        failure {
+            echo """
+            ==========================================
+            CD FAILED
+            ==========================================
+            Application : todo-api
+            Image       : ${IMAGE_REPO}:${IMAGE_TAG}
+            ==========================================
+            """
+        }
+    }
+}
