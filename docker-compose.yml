@@ -1,0 +1,11 @@
+services:
+  todo-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: todo-api
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    env_file:
+      - .env
