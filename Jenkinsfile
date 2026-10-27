@@ -14,6 +14,8 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
+    stages {
+
         stage('Checkout') {
             steps {
                 cleanWs()
@@ -36,16 +38,16 @@ pipeline {
                     ).trim()
 
                     echo """
-        ==========================================
-        BUILD INFORMATION
-        ==========================================
-        Branch  : ${env.BRANCH_NAME}
-        Commit  : ${env.ACTUAL_COMMIT}
-        Author  : ${env.AUTHOR_NAME}
-        Message : ${env.COMMIT_MESSAGE}
-        Build   : ${env.BUILD_NUMBER}
-        ==========================================
-        """
+==========================================
+BUILD INFORMATION
+==========================================
+Branch  : ${env.BRANCH_NAME}
+Commit  : ${env.ACTUAL_COMMIT}
+Author  : ${env.AUTHOR_NAME}
+Message : ${env.COMMIT_MESSAGE}
+Build   : ${env.BUILD_NUMBER}
+==========================================
+"""
                 }
             }
         }
@@ -55,15 +57,25 @@ pipeline {
                 script {
                     if (env.BRANCH_NAME == 'develop') {
                         env.DOCKER_NAME = env.DOCKER_DEV
+                        env.DEPLOY_ENV = 'dev'
                     } else if (env.BRANCH_NAME == 'main') {
                         env.DOCKER_NAME = env.DOCKER_PROD
+                        env.DEPLOY_ENV = 'production'
                     } else {
                         error("Unsupported branch: ${env.BRANCH_NAME}")
                     }
 
                     env.IMAGE = "${env.DOCKER_NAME}:${env.BUILD_NUMBER}"
 
-                    echo "Docker Image: ${env.IMAGE}"
+                    echo """
+==========================================
+IMAGE INFORMATION
+==========================================
+Branch      : ${env.BRANCH_NAME}
+Environment : ${env.DEPLOY_ENV}
+Image       : ${env.IMAGE}
+==========================================
+"""
                 }
             }
         }
@@ -73,16 +85,26 @@ pipeline {
                 sh '''
                     set -eu
 
+                    echo "=== Go Version ==="
                     go version
 
-                    if [ -n "$(gofmt -l .)" ]; then
-                        echo "ERROR: Go files need formatting:"
-                        gofmt -l .
+                    echo "=== Check gofmt ==="
+                    UNFORMATTED=$(gofmt -l .)
+
+                    if [ -n "$UNFORMATTED" ]; then
+                        echo "ERROR: Files need formatting:"
+                        echo "$UNFORMATTED"
+                        echo "Run: gofmt -w <files>"
                         exit 1
                     fi
 
+                    echo "=== Go Vet ==="
                     go vet ./...
+
+                    echo "=== Unit Tests ==="
                     go test ./... -v
+
+                    echo "Lint and tests passed."
                 '''
             }
         }
@@ -96,6 +118,8 @@ pipeline {
                         --pull \
                         -t "${IMAGE}" \
                         .
+
+                    docker image inspect "${IMAGE}" >/dev/null
                 '''
             }
         }
@@ -126,15 +150,34 @@ pipeline {
                     sh '''
                         set -eu
 
-                        echo "${DOCKER_PASSWORD}" | docker login \
-                            "${REGISTRY}" \
-                            --username "${DOCKER_USERNAME}" \
+                        echo "$DOCKER_PASSWORD" | docker login \
+                            "$REGISTRY" \
+                            --username "$DOCKER_USERNAME" \
                             --password-stdin
 
-                        docker push "${IMAGE}"
-
-                        docker logout "${REGISTRY}"
+                        docker push "$IMAGE"
                     '''
+                }
+            }
+        }
+
+        stage('Trigger CD') {
+            steps {
+                script {
+                    def cdJob = "todo-api-delivery/${env.BRANCH_NAME}"
+
+                    build job: cdJob,
+                        parameters: [
+                            string(
+                                name: 'IMAGE_REPO',
+                                value: env.DOCKER_NAME
+                            ),
+                            string(
+                                name: 'IMAGE_TAG',
+                                value: env.BUILD_NUMBER
+                            )
+                        ],
+                        wait: false
                 }
             }
         }
@@ -142,30 +185,42 @@ pipeline {
 
     post {
         success {
-            script {
-                def cdJob = "todo-api-delivery/${env.BRANCH_NAME}"
-
-                echo "CI SUCCESS: ${env.IMAGE}"
-                echo "Triggering CD job: ${cdJob}"
-
-                build job: cdJob,
-                    parameters: [
-                        string(name: 'IMAGE_REPO', value: env.DOCKER_NAME),
-                        string(name: 'IMAGE_TAG', value: env.BUILD_NUMBER)
-                    ],
-                    wait: false
-            }
+            echo """
+==========================================
+PIPELINE SUCCESS
+==========================================
+Application : simple-todo-app
+Branch      : ${env.BRANCH_NAME}
+Environment : ${env.DEPLOY_ENV}
+Build       : ${env.BUILD_NUMBER}
+Image       : ${env.IMAGE}
+Author      : ${env.AUTHOR_NAME}
+==========================================
+"""
         }
 
         failure {
-            echo "CI FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}. CD will not be triggered."
+            echo """
+==========================================
+PIPELINE FAILED
+==========================================
+Job    : ${env.JOB_NAME}
+Branch : ${env.BRANCH_NAME}
+Build  : ${env.BUILD_NUMBER}
+CD     : Not triggered if CI failed
+==========================================
+"""
         }
 
         always {
             script {
                 if (env.IMAGE) {
-                    sh 'docker image rm "${IMAGE}" || true'
+                    sh '''
+                        docker image rm "${IMAGE}" || true
+                    '''
                 }
+
+                sh 'docker logout "$REGISTRY" >/dev/null 2>&1 || true'
             }
         }
     }
