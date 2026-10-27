@@ -14,27 +14,38 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
-    stages {
         stage('Checkout') {
             steps {
                 cleanWs()
                 checkout scm
 
                 script {
+                    env.ACTUAL_COMMIT = sh(
+                        script: 'git rev-parse HEAD',
+                        returnStdout: true
+                    ).trim()
+
                     env.AUTHOR_NAME = sh(
-                        script: 'git log -1 --format=%aN',
+                        script: 'git log -1 --format=%aN HEAD',
                         returnStdout: true
                     ).trim()
 
                     env.COMMIT_MESSAGE = sh(
-                        script: 'git log -1 --format=%s',
+                        script: 'git log -1 --format=%s HEAD',
                         returnStdout: true
                     ).trim()
 
-                    echo "Branch: ${env.BRANCH_NAME}"
-                    echo "Commit: ${env.GIT_COMMIT}"
-                    echo "Author: ${env.AUTHOR_NAME}"
-                    echo "Message: ${env.COMMIT_MESSAGE}"
+                    echo """
+        ==========================================
+        BUILD INFORMATION
+        ==========================================
+        Branch  : ${env.BRANCH_NAME}
+        Commit  : ${env.ACTUAL_COMMIT}
+        Author  : ${env.AUTHOR_NAME}
+        Message : ${env.COMMIT_MESSAGE}
+        Build   : ${env.BUILD_NUMBER}
+        ==========================================
+        """
                 }
             }
         }
