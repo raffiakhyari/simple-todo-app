@@ -62,16 +62,23 @@ pipeline {
                 sh '''
                     set -eu
 
-                    go version
+                    docker run --rm \
+                        -v "$PWD:/app" \
+                        -w /app \
+                        golang:1.25 \
+                        sh -c '
+                            go version
 
-                    if [ -n "$(gofmt -l .)" ]; then
-                        echo "ERROR: Go files need formatting:"
-                        gofmt -l .
-                        exit 1
-                    fi
+                            UNFORMATTED=$(gofmt -l .)
+                            if [ -n "$UNFORMATTED" ]; then
+                                echo "ERROR: Files need formatting:"
+                                echo "$UNFORMATTED"
+                                exit 1
+                            fi
 
-                    go vet ./...
-                    go test ./... -v
+                            go vet ./...
+                            go test ./... -v
+                        '
                 '''
             }
         }
