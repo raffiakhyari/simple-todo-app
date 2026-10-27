@@ -1,4 +1,5 @@
 pipeline {
+
     agent any
 
     environment {
@@ -9,158 +10,358 @@ pipeline {
 
     options {
         timestamps()
+
         disableConcurrentBuilds()
+
         skipDefaultCheckout(true)
-        buildDiscarder(logRotator(numToKeepStr: '10'))
+
+        buildDiscarder(
+            logRotator(
+                numToKeepStr: '10'
+            )
+        )
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                cleanWs()
-                checkout scm
 
-                script {
-                    env.AUTHOR_NAME = sh(
-                        script: 'git log -1 --format=%aN',
-                        returnStdout: true
-                    ).trim()
+        // ==========================================
+        // 1. Checkout
+        // ==========================================
 
-                    env.COMMIT_MESSAGE = sh(
-                        script: 'git log -1 --format=%s',
-                        returnStdout: true
-                    ).trim()
+        stages {
+            stage('Checkout') {
+                steps {
+                    cleanWs()
+                    checkout scm
 
-                    echo "Branch: ${env.BRANCH_NAME}"
-                    echo "Commit: ${env.GIT_COMMIT}"
-                    echo "Author: ${env.AUTHOR_NAME}"
-                    echo "Message: ${env.COMMIT_MESSAGE}"
-                }
-            }
-        }
+                    script {
+                        env.AUTHOR_NAME = sh(
+                            script: 'git log -1 --format=%aN',
+                            returnStdout: true
+                        ).trim()
 
-        stage('Prepare') {
-            steps {
-                script {
-                    if (env.BRANCH_NAME == 'develop') {
-                        env.DOCKER_NAME = env.DOCKER_DEV
-                    } else if (env.BRANCH_NAME == 'main') {
-                        env.DOCKER_NAME = env.DOCKER_PROD
-                    } else {
-                        error("Unsupported branch: ${env.BRANCH_NAME}")
+                        env.COMMIT_MESSAGE = sh(
+                            script: 'git log -1 --format=%s',
+                            returnStdout: true
+                        ).trim()
+
+                        echo "Branch: ${env.BRANCH_NAME}"
+                        echo "Commit: ${env.GIT_COMMIT}"
+                        echo "Author: ${env.AUTHOR_NAME}"
+                        echo "Message: ${env.COMMIT_MESSAGE}"
                     }
-
-                    env.IMAGE = "${env.DOCKER_NAME}:${env.BUILD_NUMBER}"
-
-                    echo "Docker Image: ${env.IMAGE}"
                 }
             }
-        }
 
-        stage('Lint & Test') {
+            stage('Prepare') {
+                steps {
+                    script {
+                        if (env.BRANCH_NAME == 'develop') {
+                            env.DOCKER_NAME = env.DOCKER_DEV
+                        } else if (env.BRANCH_NAME == 'main') {
+                            env.DOCKER_NAME = env.DOCKER_PROD
+                        } else {
+                            error("Unsupported branch: ${env.BRANCH_NAME}")
+                        }
+
+                        env.IMAGE = "${env.DOCKER_NAME}:${env.BUILD_NUMBER}"
+
+                        echo "Docker Image: ${env.IMAGE}"
+                    }
+                }
+            }
+
+
+        // ==========================================
+        // 3. Lint
+        // ==========================================
+
+        stage('Lint') {
+
             steps {
+
                 sh '''
-                    set -eu
 
-                    docker run --rm \
-                        -v "$PWD:/app" \
-                        -w /app \
-                        golang:1.25 \
-                        sh -c '
-                            go version
+                    set -e
 
-                            UNFORMATTED=$(gofmt -l .)
-                            if [ -n "$UNFORMATTED" ]; then
-                                echo "ERROR: Files need formatting:"
-                                echo "$UNFORMATTED"
-                                exit 1
-                            fi
+                    echo "=========================================="
+                    echo "Go Version"
+                    echo "=========================================="
 
-                            go vet ./...
-                            go test ./... -v
-                        '
+                    go version
+
+                    echo "=========================================="
+                    echo "Checking gofmt"
+                    echo "=========================================="
+
+                    if [ -n "$(gofmt -l .)" ]; then
+
+                        echo "ERROR: The following files are not formatted:"
+
+                        gofmt -l .
+
+                        echo ""
+
+                        echo "Please run:"
+
+                        echo "gofmt -w ."
+
+                        exit 1
+
+                    fi
+
+                    echo "gofmt passed."
+
+                    echo "=========================================="
+                    echo "Running go vet"
+                    echo "=========================================="
+
+                    go vet ./...
+
+                    echo "go vet passed."
+
+                    echo "=========================================="
+                    echo "Lint SUCCESS"
+                    echo "=========================================="
                 '''
             }
         }
 
-        stage('Build Image') {
+
+        // ==========================================
+        // 4. Unit Test
+        // ==========================================
+
+        stage('Unit Test') {
+
             steps {
+
                 sh '''
-                    set -eu
+
+                    set -e
+
+                    echo "=========================================="
+                    echo "Running Unit Tests"
+                    echo "=========================================="
+
+                    go test ./... -v
+
+                    echo "=========================================="
+                    echo "Unit Test SUCCESS"
+                    echo "=========================================="
+                '''
+            }
+        }
+
+
+        // ==========================================
+        // 5. Build Docker Image
+        // ==========================================
+
+        stage('Build Image') {
+
+            steps {
+
+                sh '''
+
+                    set -e
+
+                    echo "=========================================="
+                    echo "Building Docker Image"
+                    echo "=========================================="
+
+                    echo "Image: ${IMAGE}"
 
                     DOCKER_BUILDKIT=1 docker build \
                         --pull \
                         -t "${IMAGE}" \
                         .
+
+                    echo "=========================================="
+                    echo "Docker Build SUCCESS"
+                    echo "=========================================="
+
+                    docker images "${DOCKER_NAME}"
                 '''
             }
         }
 
+
+        // ==========================================
+        // 6. Trivy Vulnerability Scan
+        // ==========================================
+
         stage('Trivy Scan') {
+
             steps {
+
                 sh '''
-                    set -eu
+
+                    set -e
+
+                    echo "=========================================="
+                    echo "Trivy Vulnerability Scan"
+                    echo "=========================================="
 
                     trivy image \
                         --severity HIGH,CRITICAL \
                         --exit-code 1 \
                         --ignore-unfixed \
                         "${IMAGE}"
+
+                    echo "=========================================="
+                    echo "Trivy Scan SUCCESS"
+                    echo "=========================================="
                 '''
             }
         }
 
+
+        // ==========================================
+        // 7. Push Docker Image
+        // ==========================================
+
         stage('Push Image') {
+
             steps {
+
                 withCredentials([
+
                     usernamePassword(
                         credentialsId: 'dockerhub-credentials',
                         usernameVariable: 'DOCKER_USERNAME',
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
+
                 ]) {
+
                     sh '''
-                        set -eu
+
+                        set -e
+
+                        echo "=========================================="
+                        echo "Docker Login"
+                        echo "=========================================="
 
                         echo "${DOCKER_PASSWORD}" | docker login \
                             "${REGISTRY}" \
                             --username "${DOCKER_USERNAME}" \
                             --password-stdin
 
+                        echo "=========================================="
+                        echo "Pushing Image"
+                        echo "=========================================="
+
                         docker push "${IMAGE}"
 
+                        echo "=========================================="
+                        echo "Docker Logout"
+                        echo "=========================================="
+
                         docker logout "${REGISTRY}"
+
+                        echo "=========================================="
+                        echo "Push SUCCESS"
+                        echo "=========================================="
                     '''
                 }
             }
         }
     }
 
+
+    // ==========================================
+    // Post Actions
+    // ==========================================
+
     post {
+
+        // ==========================================
+        // CI SUCCESS → TRIGGER CD
+        // ==========================================
+
         success {
+            echo """
+            ==========================================
+            PIPELINE SUCCESS
+            ==========================================
+            Application : todo-api
+            Branch      : ${env.BRANCH_NAME}
+            Build       : ${env.BUILD_NUMBER}
+            Image       : ${env.IMAGE}
+            Author      : ${env.AUTHOR_NAME}
+            ==========================================
+            """
+
             script {
                 def cdJob = "todo-api-delivery/${env.BRANCH_NAME}"
 
-                echo "CI SUCCESS: ${env.IMAGE}"
-                echo "Triggering CD job: ${cdJob}"
+                echo """
+                ==========================================
+                TRIGGER CD
+                ==========================================
+                CD Job : ${cdJob}
+                Image  : ${env.IMAGE}
+                Tag    : ${env.BUILD_NUMBER}
+                ==========================================
+                """
 
                 build job: cdJob,
                     parameters: [
-                        string(name: 'IMAGE_REPO', value: env.DOCKER_NAME),
-                        string(name: 'IMAGE_TAG', value: env.BUILD_NUMBER)
+                        string(
+                            name: 'IMAGE_REPO',
+                            value: env.DOCKER_NAME
+                        ),
+                        string(
+                            name: 'IMAGE_TAG',
+                            value: env.BUILD_NUMBER
+                        )
                     ],
                     wait: false
             }
         }
 
+        // ==========================================
+        // CI FAILURE
+        // ==========================================
+
         failure {
-            echo "CI FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}. CD will not be triggered."
+
+            echo """
+            ==========================================
+            PIPELINE FAILED
+            ==========================================
+
+            Application : todo-api
+            Branch      : ${env.BRANCH_NAME}
+            Build       : ${env.BUILD_NUMBER}
+
+            CD WILL NOT BE TRIGGERED
+
+            ==========================================
+            """
         }
 
+        // ==========================================
+        // ALWAYS
+        // ==========================================
+
         always {
+
             script {
+
                 if (env.IMAGE) {
-                    sh 'docker image rm "${IMAGE}" || true'
+
+                    sh """
+
+                        echo "=========================================="
+                        echo "Cleaning Local Docker Image"
+                        echo "=========================================="
+
+                        docker image rm \
+                            "${env.IMAGE}" \
+                            || true
+                    """
                 }
             }
         }
