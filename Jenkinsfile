@@ -1,5 +1,4 @@
 pipeline {
-
     agent any
 
     environment {
@@ -10,9 +9,7 @@ pipeline {
 
     options {
         timestamps()
-
         disableConcurrentBuilds()
-
         skipDefaultCheckout(true)
 
         buildDiscarder(
@@ -28,61 +25,59 @@ pipeline {
         // 1. Checkout
         // ==========================================
 
-        stages {
-            stage('Checkout') {
-                steps {
-                    cleanWs()
-                    checkout scm
+        stage('Checkout') {
+            steps {
+                cleanWs()
+                checkout scm
 
-                    script {
-                        env.AUTHOR_NAME = sh(
-                            script: 'git log -1 --format=%aN',
-                            returnStdout: true
-                        ).trim()
+                script {
+                    env.AUTHOR_NAME = sh(
+                        script: 'git log -1 --format=%aN',
+                        returnStdout: true
+                    ).trim()
 
-                        env.COMMIT_MESSAGE = sh(
-                            script: 'git log -1 --format=%s',
-                            returnStdout: true
-                        ).trim()
+                    env.COMMIT_MESSAGE = sh(
+                        script: 'git log -1 --format=%s',
+                        returnStdout: true
+                    ).trim()
 
-                        echo "Branch: ${env.BRANCH_NAME}"
-                        echo "Commit: ${env.GIT_COMMIT}"
-                        echo "Author: ${env.AUTHOR_NAME}"
-                        echo "Message: ${env.COMMIT_MESSAGE}"
-                    }
-                }
-            }
-
-            stage('Prepare') {
-                steps {
-                    script {
-                        if (env.BRANCH_NAME == 'develop') {
-                            env.DOCKER_NAME = env.DOCKER_DEV
-                        } else if (env.BRANCH_NAME == 'main') {
-                            env.DOCKER_NAME = env.DOCKER_PROD
-                        } else {
-                            error("Unsupported branch: ${env.BRANCH_NAME}")
-                        }
-
-                        env.IMAGE = "${env.DOCKER_NAME}:${env.BUILD_NUMBER}"
-
-                        echo "Docker Image: ${env.IMAGE}"
-                    }
+                    echo "Branch: ${env.BRANCH_NAME}"
+                    echo "Commit: ${env.GIT_COMMIT}"
+                    echo "Author: ${env.AUTHOR_NAME}"
+                    echo "Message: ${env.COMMIT_MESSAGE}"
                 }
             }
         }
 
+        // ==========================================
+        // 2. Prepare Image
+        // ==========================================
+
+        stage('Prepare') {
+            steps {
+                script {
+                    if (env.BRANCH_NAME == 'develop') {
+                        env.DOCKER_NAME = env.DOCKER_DEV
+                    } else if (env.BRANCH_NAME == 'main') {
+                        env.DOCKER_NAME = env.DOCKER_PROD
+                    } else {
+                        error("Unsupported branch: ${env.BRANCH_NAME}")
+                    }
+
+                    env.IMAGE = "${env.DOCKER_NAME}:${env.BUILD_NUMBER}"
+
+                    echo "Docker Image: ${env.IMAGE}"
+                }
+            }
+        }
 
         // ==========================================
         // 3. Lint
         // ==========================================
 
         stage('Lint') {
-
             steps {
-
                 sh '''
-
                     set -e
 
                     echo "=========================================="
@@ -96,19 +91,12 @@ pipeline {
                     echo "=========================================="
 
                     if [ -n "$(gofmt -l .)" ]; then
-
                         echo "ERROR: The following files are not formatted:"
-
                         gofmt -l .
-
                         echo ""
-
                         echo "Please run:"
-
                         echo "gofmt -w ."
-
                         exit 1
-
                     fi
 
                     echo "gofmt passed."
@@ -128,17 +116,13 @@ pipeline {
             }
         }
 
-
         // ==========================================
         // 4. Unit Test
         // ==========================================
 
         stage('Unit Test') {
-
             steps {
-
                 sh '''
-
                     set -e
 
                     echo "=========================================="
@@ -154,17 +138,13 @@ pipeline {
             }
         }
 
-
         // ==========================================
         // 5. Build Docker Image
         // ==========================================
 
         stage('Build Image') {
-
             steps {
-
                 sh '''
-
                     set -e
 
                     echo "=========================================="
@@ -187,17 +167,13 @@ pipeline {
             }
         }
 
-
         // ==========================================
         // 6. Trivy Vulnerability Scan
         // ==========================================
 
         stage('Trivy Scan') {
-
             steps {
-
                 sh '''
-
                     set -e
 
                     echo "=========================================="
@@ -217,27 +193,20 @@ pipeline {
             }
         }
 
-
         // ==========================================
         // 7. Push Docker Image
         // ==========================================
 
         stage('Push Image') {
-
             steps {
-
                 withCredentials([
-
                     usernamePassword(
                         credentialsId: 'dockerhub-credentials',
                         usernameVariable: 'DOCKER_USERNAME',
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
-
                 ]) {
-
                     sh '''
-
                         set -e
 
                         echo "=========================================="
@@ -269,7 +238,6 @@ pipeline {
             }
         }
     }
-
 
     // ==========================================
     // Post Actions
@@ -327,7 +295,6 @@ pipeline {
         // ==========================================
 
         failure {
-
             echo """
             ==========================================
             PIPELINE FAILED
@@ -348,13 +315,9 @@ pipeline {
         // ==========================================
 
         always {
-
             script {
-
                 if (env.IMAGE) {
-
                     sh """
-
                         echo "=========================================="
                         echo "Cleaning Local Docker Image"
                         echo "=========================================="
