@@ -36,20 +36,20 @@ pipeline {
                 checkout scm
 
                 script {
-                    env.ACTUAL_COMMIT = sh(
-                        script: 'git rev-parse HEAD',
-                        returnStdout: true
-                    ).trim()
-
                     env.AUTHOR_NAME = sh(
-                        script: 'git log -1 --format=%aN HEAD',
-                        returnStdout: true
-                    ).trim()
+                    script: 'git log -1 --format=%aN HEAD',
+                    returnStdout: true
+                ).trim()
 
-                    env.COMMIT_MESSAGE = sh(
-                        script: 'git log -1 --format=%s HEAD',
-                        returnStdout: true
-                    ).trim()
+                env.COMMIT_MESSAGE = sh(
+                    script: 'git log -1 --format=%s HEAD',
+                    returnStdout: true
+                ).trim()
+
+                env.ACTUAL_COMMIT = sh(
+                    script: 'git rev-parse HEAD',
+                    returnStdout: true
+                ).trim()
 
                     echo """
         ==========================================
