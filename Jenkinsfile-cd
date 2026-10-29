@@ -89,13 +89,13 @@ pipeline {
                 script {
                     if (env.BRANCH_NAME == 'develop') {
                         env.DEPLOY_ENV = 'DEV'
-                        env.DEPLOY_HOST = 'YOUR_DEV_VM_IP'
+                        env.DEPLOY_HOST = '3.25.52.230'
                         env.DEPLOY_USER = 'ubuntu'
-                        env.DEPLOY_DIR = '/opt/todo-api'
+                        env.DEPLOY_DIR = '/home/ubuntu/apps/simple-todo-app'
                         env.SSH_CREDENTIALS = 'todo-api-dev-ssh'
                     } else {
                         env.DEPLOY_ENV = 'PROD'
-                        env.DEPLOY_HOST = 'YOUR_PROD_VM_IP'
+                        env.DEPLOY_HOST = '3.25.52.230'
                         env.DEPLOY_USER = 'ubuntu'
                         env.DEPLOY_DIR = '/opt/todo-api'
                         env.SSH_CREDENTIALS = 'todo-api-prod-ssh'

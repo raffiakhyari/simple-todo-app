@@ -264,7 +264,7 @@ pipeline {
             """
 
             script {
-                def cdJob = "todo-api-delivery/${env.BRANCH_NAME}"
+                def cdJob = "TODO-API (CD)/${env.BRANCH_NAME}"
 
                 echo """
                 ==========================================
